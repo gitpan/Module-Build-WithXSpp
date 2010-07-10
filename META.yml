@@ -16,13 +16,14 @@ name: Module-Build-WithXSpp
 provides:
   Module::Build::WithXSpp:
     file: lib/Module/Build/WithXSpp.pm
-    version: 0.01
+    version: 0.02
 requires:
   ExtUtils::CBuilder: 0
+  ExtUtils::CppGuess: 0
   ExtUtils::ParseXS: 2.2205
   ExtUtils::Typemap: 0
   ExtUtils::XSpp: 0.11
   Module::Build: 0.26
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.01
+version: 0.02
