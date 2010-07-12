@@ -5,7 +5,7 @@ use warnings;
 use Module::Build;
 use ExtUtils::CppGuess ();
 our @ISA = qw(Module::Build);
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 # TODO
 # - configurable set of xsp and xspt files (and XS typemaps?)
@@ -25,10 +25,25 @@ sub new {
 
   # This gives us the correct settings for the C++ compile (hopefully)
   my $guess = ExtUtils::CppGuess->new();
-  $guess->add_extra_compiler_flags($args{extra_compiler_flags})
-    if defined $args{extra_compiler_flags};
-  $guess->add_extra_linker_flags($args{extra_linker_flags})
-    if defined $args{extra_linker_flags};
+  if (defined $args{extra_compiler_flags}) {
+    if (ref($args{extra_compiler_flags})) {
+      $guess->add_extra_compiler_flags($_) for @{$args{extra_compiler_flags}};
+    }
+    else {
+      $guess->add_extra_compiler_flags($args{extra_compiler_flags})
+    }
+    delete $args{extra_compiler_flags};
+  }
+
+  if (defined $args{extra_linker_flags}) {
+    if (ref($args{extra_linker_flags})) {
+      $guess->add_extra_linker_flags($_) for @{$args{extra_linker_flags}};
+    }
+    else {
+      $guess->add_extra_linker_flags($args{extra_linker_flags})
+    }
+    delete $args{extra_linker_flags};
+  }
 
   # add the typemap modules to the build dependencies
   my $build_requires = $args{build_requires}||{};
@@ -50,7 +65,9 @@ sub new {
     $guess->module_build_options # FIXME find a way to let the user override this
   );
 
-  push @{$self->extra_compiler_flags}, map "-I$_", @{$self->cpp_source_dirs||[]};
+  push @{$self->extra_compiler_flags},
+    map "-I$_",
+    (@{$self->cpp_source_dirs||[]}, $self->build_dir);
 
   $self->_init(\%args);
 
@@ -73,6 +90,8 @@ sub auto_require {
   ) {
     (my $ver = $VERSION) =~ s/^(\d+\.\d\d).*$/$1/; # last major release only
     $self->_add_prereq('configure_requires', 'Module::Build::WithXSpp', $ver);
+    ($ver = $ExtUtils::CppGuess::VERSION) =~ s/^(\d+\.\d\d).*$/$1/; # last major release only
+    $self->_add_prereq('configure_requires', 'ExtUtils::CppGuess', $ver);
   }
 
   $self->SUPER::auto_require();
@@ -189,7 +208,7 @@ sub ACTION_generate_typemap {
               : $module;
     if (not eval "use $str;1;") {
       $self->log_warn(<<HERE);
-ERROR: Required typmap module '$module' version $extra_modules->{$module} not found.
+ERROR: Required typemap module '$module' version $extra_modules->{$module} not found.
 Error message:
 $@
 HERE
@@ -220,7 +239,8 @@ sub find_map_files  {
   my $files = $self->_find_file_by_type('map', 'lib');
   my @extra_files = map glob($_),
                     map File::Spec->catfile($_, '*.map'),
-                    @{$self->extra_xs_dirs||[]};
+                    (@{$self->extra_xs_dirs||[]}, $self->build_dir);
+
   $files->{$_} = $_ foreach map $self->localize_file_path($_),
                             @extra_files;
   $files->{'typemap'} = 'typemap' if -f 'typemap';
@@ -234,7 +254,8 @@ sub find_xsp_files  {
 
   my @extra_files = map glob($_),
                     map File::Spec->catfile($_, '*.xsp'),
-                    @{$self->extra_xs_dirs||[]};
+                    (@{$self->extra_xs_dirs||[]}, $self->build_dir);
+
   my $files = $self->_find_file_by_type('xsp', 'lib');
   $files->{$_} = $_ foreach map $self->localize_file_path($_),
                             @extra_files;
