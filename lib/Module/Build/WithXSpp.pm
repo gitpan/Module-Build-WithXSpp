@@ -5,7 +5,7 @@ use warnings;
 use Module::Build;
 use ExtUtils::CppGuess ();
 our @ISA = qw(Module::Build);
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 # TODO
 # - configurable set of xsp and xspt files (and XS typemaps?)
@@ -16,7 +16,6 @@ our $VERSION = '0.05';
 # - configurable C++ source folder(s) (works, needs docs)
 #   => to be documented another time. This is really not a feature that
 #      should be commonly used.
-# - regenerate main.xs only if neccessary
 
 sub new {
   my $proto = shift;
@@ -84,14 +83,22 @@ sub auto_require {
   my ($self) = @_;
   my $p = $self->{properties};
 
-  if ( $self->dist_name ne 'Module-Build-WithXSpp'
-    && $self->auto_configure_requires
-    && ! exists $p->{configure_requires}{'Module::Build::WithXSpp'}
-  ) {
-    (my $ver = $VERSION) =~ s/^(\d+\.\d\d).*$/$1/; # last major release only
-    $self->_add_prereq('configure_requires', 'Module::Build::WithXSpp', $ver);
-    ($ver = $ExtUtils::CppGuess::VERSION) =~ s/^(\d+\.\d\d).*$/$1/; # last major release only
-    $self->_add_prereq('configure_requires', 'ExtUtils::CppGuess', $ver);
+  if ($self->dist_name ne 'Module-Build-WithXSpp'
+      && $self->auto_configure_requires)
+  {
+    if (not exists $p->{configure_requires}{'Module::Build::WithXSpp'}) {
+      (my $ver = $VERSION) =~ s/^(\d+\.\d\d).*$/$1/; # last major release only
+      $self->_add_prereq('configure_requires', 'Module::Build::WithXSpp', $ver);
+    }
+    if (not exists $p->{configure_requires}{'ExtUtils::CppGuess'}) {
+      (my $ver = $ExtUtils::CppGuess::VERSION) =~ s/^(\d+\.\d\d).*$/$1/; # last major release only
+      $self->_add_prereq('configure_requires', 'ExtUtils::CppGuess', $ver);
+    }
+    if (not exists $p->{build_requires}{'ExtUtils::CppGuess'}
+        && eval("require ExtUtils::XSpp; 1;")) {
+      (my $ver = $ExtUtils::XSpp::VERSION) =~ s/^(\d+\.\d\d).*$/$1/; # last major release only
+      $self->_add_prereq('build_requires', 'ExtUtils::XSpp', $ver);
+    }
   }
 
   $self->SUPER::auto_require();
@@ -136,19 +143,34 @@ sub ACTION_generate_main_xs {
   my $self = shift;
 
   my $xs_files = $self->find_xs_files;
+  my $main_xs_file = File::Spec->catfile($self->build_dir, 'main.xs');
 
-  if (keys(%$xs_files) > 1
-      or keys(%$xs_files) == 1
-      && (values(%$xs_files))[0] =~ /\bmain\.xs$/) # FIXME better detection of auto-gen main.XS
-  {
+  if (keys(%$xs_files) > 1) {
     # user knows what she's doing, do not generate XS
     $self->log_info("Found custom XS files. Not auto-generating main XS file...\n");
     return 1;
   }
 
-  $self->log_info("Generating main XS file...\n");
   my $xsp_files = $self->find_xsp_files;
   my $xspt_files = $self->find_xsp_typemaps;
+
+  my $newest = $self->_calc_newest(
+    keys(%$xsp_files),
+    keys(%$xspt_files),
+    'Build.PL',
+    File::Spec->catdir($self->build_dir, 'typemap'),
+  );
+
+  if (keys(%$xs_files) == 1
+      && (values(%$xs_files))[0] =~ /\Q$main_xs_file\E$/)
+  {
+    # is main xs file still current?
+    if (-A $main_xs_file < $newest) {
+      return 1;
+    }
+  }
+
+  $self->log_info("Generating main XS file...\n");
 
   my $module_name = $self->module_name;
   my $xs_code = <<"HERE";
@@ -191,15 +213,10 @@ HERE
   return 1;
 }
 
-sub ACTION_generate_typemap {
+sub _load_extra_typemap_modules {
   my $self = shift;
-  $self->depends_on('create_buildarea');
-
-  $self->log_info("Processing XS typemap files...\n");
 
   require ExtUtils::Typemap;
-  require File::Spec;
-
   my $extra_modules = $self->extra_typemap_modules||{};
 
   foreach my $module (keys %$extra_modules) {
@@ -214,17 +231,33 @@ $@
 HERE
     }
   }
+}
+
+sub ACTION_generate_typemap {
+  my $self = shift;
+  $self->depends_on('create_buildarea');
+
+  require File::Spec;
 
   my $files = $self->find_map_files;
 
-  # merge all typemaps into 'buildtmp/typemap'
-  # creates empty typemap file if there are no files to merge
+  $self->_load_extra_typemap_modules();
+  my $extra_modules = $self->extra_typemap_modules||{};
+
+  my $newest = $self->_calc_newest(
+    keys(%$files),
+    'Build.PL',
+  );
+
   my $out_map_file = File::Spec->catfile($self->build_dir, 'typemap');
-  if (keys %$files and -f $out_map_file) {
-    my $age = -M $out_map_file;
-    return if !grep {-M $_ < $age} keys %$files;
+  if (-f $out_map_file and -A $out_map_file < $newest) {
+    return 1;
   }
 
+  $self->log_info("Processing XS typemap files...\n");
+
+  # merge all typemaps into 'buildtmp/typemap'
+  # creates empty typemap file if there are no files to merge
   my $merged = ExtUtils::Typemap->new;
   $merged->merge(typemap => $_->new) for keys %$extra_modules;
 
@@ -332,7 +365,6 @@ sub compile_xs {
     hiertype => 1,
     typemap    => File::Spec->catfile($build_dir, 'typemap'),
   );
-
 }
 
 # modified from orinal M::B (FIXME: shouldn't do this with private methods)
@@ -404,6 +436,17 @@ sub _merge_hashes {
     $h{$_} = $m->{$_} foreach keys %$m;
   }
   return \%h;
+}
+
+sub _calc_newest {
+  my $self = shift;
+  my $newest = 1.e99;
+  foreach my $file (@_) {
+    next if not defined $file;
+    my $age = -A $file;
+    $newest = $age if defined $age and $age < $newest;
+  }
+  return $newest;
 }
 
 1;
@@ -540,6 +583,21 @@ additional compiler/linker options.
 This is known to work on GCC (Linux, MacOS, Windows, and ?) as well
 as the MS VC toolchain. Patches to enable other compilers are
 B<very> welcome.
+
+=head2 Automatic dependencies
+
+C<Module::Build::WithXSpp> automatically adds several dependencies
+(on the currently running versions) to your distribution.
+You can disable this by setting
+C<auto_configure_requires =E<gt> 0> in F<Build.PL>.
+
+These are at configure time: C<Module::Build>,
+C<Module::Build::WithXSpp> itself, and C<ExtUtils::CppGuess>.
+Additionally there will be a build-time dependency on
+C<ExtUtils::XSpp>.
+
+You do not have to set these dependencies yourself unless
+you need to set the required versions manually.
 
 =head1 JUMP START FOR THE IMPATIENT
 
