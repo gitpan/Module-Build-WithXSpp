@@ -5,7 +5,7 @@ use warnings;
 use Module::Build;
 use ExtUtils::CppGuess ();
 our @ISA = qw(Module::Build);
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
 # TODO
 # - configurable set of xsp and xspt files (and XS typemaps?)
@@ -84,7 +84,7 @@ sub auto_require {
   my $p = $self->{properties};
 
   if ($self->dist_name ne 'Module-Build-WithXSpp'
-      && $self->auto_configure_requires)
+      and $self->auto_configure_requires)
   {
     if (not exists $p->{configure_requires}{'Module::Build::WithXSpp'}) {
       (my $ver = $VERSION) =~ s/^(\d+\.\d\d).*$/$1/; # last major release only
@@ -95,7 +95,9 @@ sub auto_require {
       $self->_add_prereq('configure_requires', 'ExtUtils::CppGuess', $ver);
     }
     if (not exists $p->{build_requires}{'ExtUtils::CppGuess'}
-        && eval("require ExtUtils::XSpp; 1;")) {
+        and eval("require ExtUtils::XSpp;")
+        and defined $ExtUtils::XSpp::VERSION)
+    {
       (my $ver = $ExtUtils::XSpp::VERSION) =~ s/^(\d+\.\d\d).*$/$1/; # last major release only
       $self->_add_prereq('build_requires', 'ExtUtils::XSpp', $ver);
     }
@@ -314,8 +316,9 @@ sub find_xsp_typemaps {
     $xspt_files->{$_} = $_
   }
 
-  my @extra_files = map glob($_),
-                    grep defined $_ && /\S/ && -e $_,
+  my @extra_files = grep -e $_,
+                    map glob($_),
+                    grep defined $_ && /\S/,
                     map { ( File::Spec->catfile($_, 'typemap.xsp'),
                             File::Spec->catfile($_, '*.xspt') ) }
                     @{$self->extra_xs_dirs||[]};
