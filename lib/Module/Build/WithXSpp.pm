@@ -4,8 +4,9 @@ use warnings;
 
 use Module::Build;
 use ExtUtils::CppGuess ();
+
 our @ISA = qw(Module::Build);
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 
 # TODO
 # - configurable set of xsp and xspt files (and XS typemaps?)
@@ -167,7 +168,7 @@ sub ACTION_generate_main_xs {
       && (values(%$xs_files))[0] =~ /\Q$main_xs_file\E$/)
   {
     # is main xs file still current?
-    if (-A $main_xs_file < $newest) {
+    if (-M $main_xs_file < $newest) {
       return 1;
     }
   }
@@ -252,7 +253,7 @@ sub ACTION_generate_typemap {
   );
 
   my $out_map_file = File::Spec->catfile($self->build_dir, 'typemap');
-  if (-f $out_map_file and -A $out_map_file < $newest) {
+  if (-f $out_map_file and -M $out_map_file < $newest) {
     return 1;
   }
 
@@ -278,6 +279,7 @@ sub find_map_files  {
 
   $files->{$_} = $_ foreach map $self->localize_file_path($_),
                             @extra_files;
+
   $files->{'typemap'} = 'typemap' if -f 'typemap';
 
   return $files;
@@ -428,7 +430,7 @@ sub _infer_xs_spec {
 
 __PACKAGE__->add_property( 'cpp_source_dirs'       => ['src'] );
 __PACKAGE__->add_property( 'build_dir'             => 'buildtmp' );
-__PACKAGE__->add_property( 'extra_xs_dirs'         => [qw(. xs XS xsp XSP)] );
+__PACKAGE__->add_property( 'extra_xs_dirs'         => [".", grep { -d $_ and /^xsp?$/i } glob("*")] );
 __PACKAGE__->add_property( 'extra_typemap_modules' => {} );
 
 
@@ -446,7 +448,7 @@ sub _calc_newest {
   my $newest = 1.e99;
   foreach my $file (@_) {
     next if not defined $file;
-    my $age = -A $file;
+    my $age = -M $file;
     $newest = $age if defined $age and $age < $newest;
   }
   return $newest;
@@ -704,6 +706,12 @@ STL C<std::string>s.
 =head1 AUTHOR
 
 Steffen Mueller <smueller@cpan.org>
+
+With input and bug fixes from:
+
+Mattia Barbon
+
+Shmuel Fomberg
 
 =head1 COPYRIGHT AND LICENSE
 
