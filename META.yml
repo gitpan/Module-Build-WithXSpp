@@ -7,7 +7,8 @@ build_requires:
   Module::Build: 0.26
 configure_requires:
   Module::Build: 0.26
-generated_by: 'Module::Build version 0.3607'
+dynamic_config: 1
+generated_by: 'Module::Build version 0.38, CPAN::Meta::Converter version 2.110930'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -16,15 +17,15 @@ name: Module-Build-WithXSpp
 provides:
   Module::Build::WithXSpp:
     file: lib/Module/Build/WithXSpp.pm
-    version: 0.09
+    version: 0.10
 requires:
   Digest::MD5: 0
   ExtUtils::CBuilder: 0
   ExtUtils::CppGuess: 0.04
   ExtUtils::ParseXS: 2.2205
-  ExtUtils::Typemap: 0
+  ExtUtils::Typemaps: 1.00
   ExtUtils::XSpp: 0.11
   Module::Build: 0.26
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.09
+version: 0.10
