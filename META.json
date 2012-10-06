@@ -4,7 +4,7 @@
       "Steffen Mueller <smueller@cpan.org>"
    ],
    "dynamic_config" : 1,
-   "generated_by" : "Module::Build version 0.38, CPAN::Meta::Converter version 2.112621",
+   "generated_by" : "Module::Build version 0.38, CPAN::Meta::Converter version 2.120921",
    "license" : [
       "perl_5"
    ],
@@ -16,7 +16,7 @@
    "prereqs" : {
       "build" : {
          "requires" : {
-            "ExtUtils::CBuilder" : 0,
+            "ExtUtils::CBuilder" : "0",
             "Module::Build" : "0.26"
          }
       },
@@ -27,8 +27,8 @@
       },
       "runtime" : {
          "requires" : {
-            "Digest::MD5" : 0,
-            "ExtUtils::CBuilder" : 0,
+            "Digest::MD5" : "0",
+            "ExtUtils::CBuilder" : "0",
             "ExtUtils::CppGuess" : "0.04",
             "ExtUtils::ParseXS" : "2.2205",
             "ExtUtils::Typemaps" : "1.00",
@@ -40,7 +40,7 @@
    "provides" : {
       "Module::Build::WithXSpp" : {
          "file" : "lib/Module/Build/WithXSpp.pm",
-         "version" : "0.11"
+         "version" : "0.12"
       }
    },
    "release_status" : "stable",
@@ -49,5 +49,5 @@
          "http://dev.perl.org/licenses/"
       ]
    },
-   "version" : "0.11"
+   "version" : "0.12"
 }
